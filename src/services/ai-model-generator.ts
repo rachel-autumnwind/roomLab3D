@@ -9,9 +9,42 @@ export interface GenerationResult {
 const isGenerating = ref(false)
 const generationError = ref<string | null>(null)
 
-// Meshy API - 免费额度每月 200 积分
-// 在 .env 中设置 VITE_MESHY_API_KEY
-const MESHY_API_URL = 'https://api.meshy.ai/v1'
+// Tripo AI API - 新用户有免费额度
+// 在 .env 中设置 VITE_TRIPO_API_KEY
+// 如果没有 API Key，将使用 mock 模式
+const TRIPO_API_URL = 'https://api.tripo3d.ai/v2/openapi'
+
+// Mock 模式使用的免费 3D 模型（来自 Khronos glTF 示例库）
+const MOCK_MODELS = [
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Duck/glTF-Binary/Duck.glb',
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Avocado/glTF-Binary/Avocado.glb',
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/SheenChair/glTF-Binary/SheenChair.glb',
+  'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/ToyCar/glTF-Binary/ToyCar.glb'
+]
+
+function selectMockModel(prompt: string): string {
+  // 根据 prompt 关键词选择合适的模型
+  const lowerPrompt = prompt.toLowerCase()
+  if (lowerPrompt.includes('椅') || lowerPrompt.includes('chair')) {
+    return MOCK_MODELS[3]
+  }
+  if (lowerPrompt.includes('车') || lowerPrompt.includes('car')) {
+    return MOCK_MODELS[4]
+  }
+  if (lowerPrompt.includes('盒') || lowerPrompt.includes('box')) {
+    return MOCK_MODELS[1]
+  }
+  // 默认随机返回一个
+  return MOCK_MODELS[Math.floor(Math.random() * MOCK_MODELS.length)]
+}
+
+async function mockGenerate(prompt: string): Promise<string> {
+  // 模拟 AI 生成延迟（2-4秒）
+  const delay = 2000 + Math.random() * 2000
+  await new Promise(r => setTimeout(r, delay))
+  return selectMockModel(prompt)
+}
 
 export function useAIModelGenerator() {
   async function generateModel(prompt: string): Promise<GenerationResult> {
@@ -19,30 +52,32 @@ export function useAIModelGenerator() {
       return { success: false, error: '请输入描述' }
     }
 
-    const apiKey = import.meta.env.VITE_MESHY_API_KEY
-    if (!apiKey) {
-      return {
-        success: false,
-        error: '请在 .env 文件中设置 VITE_MESHY_API_KEY'
-      }
-    }
+    const apiKey = import.meta.env.VITE_TRIPO_API_KEY
+    const useMock = !apiKey || apiKey === 'your_api_key_here'
 
     isGenerating.value = true
     generationError.value = null
 
     try {
-      // Step 1: 创建生成任务
-      const createRes = await fetch(`${MESHY_API_URL}/text-to-3d`, {
+      // Mock 模式
+      if (useMock) {
+        console.log('[AI Generator] 使用 Mock 模式')
+        const modelUrl = await mockGenerate(prompt)
+        return { success: true, modelUrl }
+      }
+
+      // 真实 Tripo API 模式
+      const createRes = await fetch(`${TRIPO_API_URL}/task`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          mode: 'preview',
+          type: 'text_to_model',
           prompt,
-          art_style: 'realistic',
-          negative_prompt: 'low quality, blurry'
+          negative_prompt: 'low quality, blurry, distorted',
+          model_version: 'v2.5'
         })
       })
 
@@ -51,9 +86,14 @@ export function useAIModelGenerator() {
         throw new Error(err.message || `创建任务失败: ${createRes.status}`)
       }
 
-      const { result: taskId } = await createRes.json()
+      const result = await createRes.json()
 
-      // Step 2: 轮询任务状态
+      if (result.code !== 0) {
+        throw new Error(result.message || '创建任务失败')
+      }
+
+      const taskId = result.data.task_id
+
       const modelUrl = await pollTaskStatus(taskId, apiKey)
       return { success: true, modelUrl }
     } catch (err: unknown) {
@@ -71,21 +111,25 @@ export function useAIModelGenerator() {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise(r => setTimeout(r, 3000))
 
-      const res = await fetch(`${MESHY_API_URL}/text-to-3d/${taskId}`, {
+      const res = await fetch(`${TRIPO_API_URL}/task/${taskId}`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       })
 
       if (!res.ok) continue
 
-      const task = await res.json()
+      const result = await res.json()
 
-      if (task.status === 'SUCCEEDED') {
+      if (result.code !== 0) continue
+
+      const task = result.data
+
+      if (task.status === 'success') {
         // 返回 GLB 格式的模型 URL
-        return task.model_urls?.glb || task.model_url
+        return task.output?.model || task.output?.pbr_model
       }
 
-      if (task.status === 'FAILED') {
-        throw new Error(task.message || '生成失败')
+      if (task.status === 'failed') {
+        throw new Error('生成失败')
       }
     }
 
