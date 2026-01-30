@@ -61,15 +61,6 @@ watch(() => props.selectedId, (newId) => {
   }
 })
 
-// 监听 furnitureRefs 变化
-watch(() => props.furnitureRefs, () => {
-  if (!transformControls || !props.selectedId) return
-  const ref = props.furnitureRefs[props.selectedId]
-  if (ref?.groupRef) {
-    transformControls.attach(ref.groupRef)
-  }
-}, { deep: true })
-
 onUnmounted(() => {
   if (transformControls) {
     transformControls.detach()
