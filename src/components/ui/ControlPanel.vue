@@ -101,7 +101,7 @@ const deleteSelected = () => {
 
     <!-- 选中家具信息 -->
     <div v-if="selectedFurniture" class="selected-info">
-      <div class="selected-label">已选中: {{ furnitureTypes.find(t => t.value === selectedFurniture.type)?.label }}</div>
+      <div class="selected-label">已选中: {{ furnitureTypes.find(t => t.value === selectedFurniture?.type)?.label }}</div>
       <button class="btn btn-danger" @click="deleteSelected">
         删除选中
       </button>

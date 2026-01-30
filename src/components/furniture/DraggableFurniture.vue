@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, shallowRef, computed } from 'vue'
+import { watch, shallowRef, computed } from 'vue'
 import { useFurniture, type Furniture } from '@/composables/useFurniture'
 import ChairModel from './ChairModel.vue'
 import TableModel from './TableModel.vue'
@@ -16,7 +16,7 @@ const emit = defineEmits<{
   select: [id: number]
 }>()
 
-const { selectedId, updatePosition } = useFurniture()
+const { selectedId } = useFurniture()
 
 const groupRef = shallowRef<Group | null>(null)
 const hitboxRef = shallowRef<Mesh | null>(null)
@@ -24,7 +24,7 @@ const hitboxRef = shallowRef<Mesh | null>(null)
 const isSelected = computed(() => selectedId.value === props.furniture.id)
 
 // 根据家具类型设置碰撞盒大小
-const hitboxSize = computed(() => {
+const hitboxSize = computed((): [number, number, number] => {
   switch (props.furniture.type) {
     case 'sofa': return [2, 1, 1]
     case 'table': return [1.3, 0.8, 0.9]
@@ -35,7 +35,7 @@ const hitboxSize = computed(() => {
   }
 })
 
-const hitboxPosition = computed(() => {
+const hitboxPosition = computed((): [number, number, number] => {
   switch (props.furniture.type) {
     case 'sofa': return [0, 0.5, 0]
     case 'table': return [0, 0.4, 0]

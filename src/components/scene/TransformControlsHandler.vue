@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted, toRefs } from 'vue'
+import { watch, onMounted, onUnmounted } from 'vue'
 import { useTresContext } from '@tresjs/core'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import type { Object3D } from 'three'
@@ -25,9 +25,10 @@ onMounted(() => {
 
   scene.value?.add(transformControls)
 
-  transformControls.addEventListener('dragging-changed', (event: { value: boolean }) => {
+  transformControls.addEventListener('dragging-changed', (event: unknown) => {
+    const dragEvent = event as { value: boolean }
     if (controls.value) {
-      (controls.value as any).enabled = !event.value
+      (controls.value as any).enabled = !dragEvent.value
     }
   })
 
